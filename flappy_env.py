@@ -285,6 +285,29 @@ class FlappyBird(gym.Env):
 
     # def render(self):
 
+def testStepMethod():
+    env = FlappyBird()
+    env.reset()
+    imgs = []
+    cont = True
+    while cont:
+        for event in pygame.event.get():
+            if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
+                # pygame.quit()
+                # sys.exit()
+                cont = False
+            if event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP):
+                state, reward, done, _ = env.step(1)
+                img = Image.fromarray(state)
+                imgs.append(img)
+                print(reward)
+                print(done)
+            else:
+                env.step(0)
+        pygame.display.update()
+        # FPSCLOCK.tick(FPS)
+    for img in imgs[:20]:
+        img.show()
 
 def getRandomPipe():
     """returns a randomly generated pipe"""
@@ -383,4 +406,5 @@ if __name__ == "__main__":
     # parser = argparse.ArgumentParser()
     # parser.add_argument('dirname', type=str)
     # args = parser.parse_args()
-    debug()
+    # debug()
+    testStepMethod()
