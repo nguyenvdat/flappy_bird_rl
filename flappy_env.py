@@ -92,7 +92,7 @@ class FlappyBird(gym.Env):
         # base (ground) sprite
         IMAGES['base'] = pygame.image.load('assets/sprites/base.png').convert_alpha()
 
-        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(SCREENWIDTH, SCREENHEIGHT, 3), dtype=np.uint8)
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(SCREENHEIGHT, SCREENWIDTH, 3), dtype=np.uint8)
         self.action_space = gym.spaces.Discrete(n=3)
         self.upperPipes = []
         self.lowerPipes = []
@@ -194,17 +194,8 @@ class FlappyBird(gym.Env):
         return np.transpose(imgdata,(1, 0, 2))
 
     def step(self, action):
-        # while True:
         done = False
         reward = 0
-        # for event in pygame.event.get():
-        #     if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
-        #         pygame.quit()
-        #         sys.exit()
-        #     if event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP):
-        #         if self.playery > -2 * IMAGES['player'][0].get_height():
-        #                 self.playerVelY = self.playerFlapAcc
-        #                 self.playerFlapped = True
         if action == 1:
             if self.playery > -2 * IMAGES['player'][0].get_height():
                     self.playerVelY = self.playerFlapAcc
@@ -281,33 +272,17 @@ class FlappyBird(gym.Env):
             if pipeMidPos <= playerMidPos < pipeMidPos + 4:
                 reward = 1
                 self.score += 1
+                print('score')
+        # print(reward)
+        # print(done)
         return state, reward, done, None
 
     # def render(self):
 
-def testStepMethod():
-    env = FlappyBird()
-    env.reset()
-    imgs = []
-    cont = True
-    while cont:
-        for event in pygame.event.get():
-            if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
-                # pygame.quit()
-                # sys.exit()
-                cont = False
-            if event.type == KEYDOWN and (event.key == K_SPACE or event.key == K_UP):
-                state, reward, done, _ = env.step(1)
-                img = Image.fromarray(state)
-                imgs.append(img)
-                print(reward)
-                print(done)
-            else:
-                env.step(0)
-        pygame.display.update()
-        # FPSCLOCK.tick(FPS)
-    for img in imgs[:20]:
-        img.show()
+
+def showState(state):
+    img = Image.fromarray(state)
+    img.show()
 
 def getRandomPipe():
     """returns a randomly generated pipe"""
@@ -398,8 +373,9 @@ def getHitmask(image):
 
 def debug():
     env = FlappyBird()
-    env.reset()
-    state, reward, done, _ = env.step(1)
+    print(env.observation_space.sample())
+    # env.reset()
+    # state, reward, done, _ = env.step(1)
 
 if __name__ == "__main__":
     # import argparse
