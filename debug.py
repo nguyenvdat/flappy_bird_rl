@@ -1,7 +1,8 @@
-from flappy_env import *
+# from flappy_env import *
 from wrappers import *
 import matplotlib.pyplot as plt
 import pygame
+from actor_critic import *
 
 def test_step_method():
     env = FlappyBird()
@@ -73,10 +74,18 @@ def test_makeenv():
     assert state.shape == (4, 84, 84)
     assert np.min(state) >= 0 and np.max(state) <= 1
 
+def test_network():
+    net = Network((1, 84, 84), 2)
+    x = torch.zeros(2, 1, 84, 84)
+    out = net(x)
+    assert out.size() == (2, 2)
+
+
 if __name__ == "__main__":
     # test_step_method()
     # test_processframe84_wrapper()
     # test_imagetopytorch_wrapper()
     # test_buffer_wrapper()
     # test_scaledfloatframe_wrapper()
-    test_makeenv()
+    # test_makeenv()
+    test_network()
