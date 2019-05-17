@@ -38,7 +38,7 @@ class BufferWrapper(gym.ObservationWrapper):
         self.dtype = dtype
         self.n_steps = n_steps
         self.c, self.h, self.w = env.observation_space.low.shape
-        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(n_steps,self.c, self.h, self.w), dtype=dtype)
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(n_steps*self.c, self.h, self.w), dtype=dtype)
 
     def reset(self):
         self.buffer = np.zeros((self.n_steps, self.c, self.h, self.w))

@@ -93,7 +93,7 @@ class FlappyBird(gym.Env):
         IMAGES['base'] = pygame.image.load('assets/sprites/base.png').convert_alpha()
 
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(SCREENHEIGHT, SCREENWIDTH, 3), dtype=np.uint8)
-        self.action_space = gym.spaces.Discrete(n=3)
+        self.action_space = gym.spaces.Discrete(n=5)
         self.upperPipes = []
         self.lowerPipes = []
         # player velocity, max velocity, downward accleration, accleration on flap
@@ -116,6 +116,8 @@ class FlappyBird(gym.Env):
         self.basex = 0
         self.baseShift = 0
         self.pipeVelX = -4
+        self.spec = {}
+        self.spec['max_episode_steps'] = 1000
 
     def reset(self):
         randBg = random.randint(0, len(BACKGROUNDS_LIST) - 1)
@@ -270,17 +272,15 @@ class FlappyBird(gym.Env):
         for pipe in self.upperPipes:
             pipeMidPos = pipe['x'] + IMAGES['pipe'][0].get_width() / 2
             if pipeMidPos <= playerMidPos < pipeMidPos + 4:
-                reward = 1
                 self.score += 1
-                print('score')
-        # print(reward)
-        # print(done)
+                reward = 1
         return state, reward, done, None
 
     # def render(self):
+    #     img = Image.fromarray(state)
+    #     img.show()
 
-
-def showState(state):
+def showState(self, state):
     img = Image.fromarray(state)
     img.show()
 
