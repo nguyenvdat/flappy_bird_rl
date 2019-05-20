@@ -11,6 +11,8 @@ import inspect
 import os
 from wrappers import make_env
 import matplotlib.pyplot as plt
+import queue
+from torch.distributions.categorical import Categorical
 
 class Network(nn.Module):
     """
@@ -68,6 +70,9 @@ class Agent:
         self.learning_rate = computation_graph_args['learning_rate']
         self.num_target_updates = computation_graph_args['num_target_updates']
         self.num_grad_steps_per_target_update = computation_graph_args['num_grad_steps_per_target_update']
+        self.save_path = computation_graph_args['save_path']
+        self.load_path = computation_graph_args['load_path']
+        self.max_checkpoints = computation_graph_args['max_checkpoints']
 
         self.animate = sample_trajectory_args['animate']
         self.max_path_length = sample_trajectory_args['max_path_length']
@@ -84,6 +89,13 @@ class Agent:
         else:
             actor_param_list = list(self.actor_nn.parameters()) + list(self.log_std)
         self.actor_optim = torch.optim.Adam(actor_param_list)
+        self.ckpt_paths = queue.Queue()
+        if self.load_path:
+            self.step, self.best_val = self.load_model(self.load_path)
+        else:
+            self.step = 0
+            self.best_val = -1
+
 
     def get_policy_parameter(self, ob):
         """ 
@@ -110,7 +122,7 @@ class Agent:
         Sample a random action according to the distribution specified by policy_parameter
         arguments:
             for discrete action: logits of categorical distribution over actions
-                logits: (bs)
+                logits: (bs, action_dim)
             for continuous action: (mean, log_std) of a Gaussian distribution over actions 
                 mean: (bs, action_dim)
                 log_std: action_dim
@@ -120,7 +132,8 @@ class Agent:
                 if continuous: (bs, action_dim)
         """
         if self.discrete:
-            sampled_ac = torch.multinomial(policy_parameter, 1)
+            logits = policy_parameter
+            sampled_ac = torch.multinomial(F.softmax(logits, dim=1), 1)
         else:
             mean, log_std = policy_parameter
             z = torch.randn(self.ac_dim)
@@ -142,8 +155,10 @@ class Agent:
             log_prob: (bs)
         """
         if self.discrete:
-            loss = nn.CrossEntropyLoss()
-            log_prob = -loss(policy_parameter, taken_action)
+            logits = policy_parameter
+            bs, _ = logits.size()
+            log_prob_v = F.log_softmax(logits, dim=1)
+            log_prob = log_prob_v[range(bs), taken_action]
         else:
             mean, log_std = policy_parameter
             cov = torch.eye(self.ac_dim)
@@ -166,9 +181,14 @@ class Agent:
         self.actor_optim.zero_grad()
         policy_parameter = self.get_policy_parameter(obs)
         log_prob = self.get_log_prob(policy_parameter, actions)
-        loss = torch.sum(-log_prob * adv)
+        loss = torch.mean(-log_prob * adv)
+        print('Previous log_prob: ' + str(-loss))
         loss.backward()
         self.actor_optim.step()
+        policy_parameter = self.get_policy_parameter(obs)
+        log_prob = self.get_log_prob(policy_parameter, actions)
+        loss = torch.mean(-log_prob * adv)
+        print('Updated log_prob: ' + str(-loss))
 
     def update_critic(self, obs, next_obs, re, terminal):
         """ 
@@ -180,11 +200,11 @@ class Agent:
             terminal: (sum_of_path_lengths)
         returns: nothing
         """
-        for target_update_count in range(self.num_target_updates):
+        for _ in range(self.num_target_updates):
             # recompute target values
             v_s_next = torch.squeeze(self.critic_nn(next_obs))
-            target_value = (1 - terminal) * (re + self.gamma * v_s_next) + terminal * re
-            for grad_step_count in range(self.num_grad_steps_per_target_update):
+            target_value = re + self.gamma * v_s_next * (1 - terminal)
+            for _ in range(self.num_grad_steps_per_target_update):
                 self.critic_optim.zero_grad()
                 v_s_prediction = torch.squeeze(self.critic_nn(obs))
                 loss_fn = nn.MSELoss()
@@ -205,13 +225,13 @@ class Agent:
         """
         v_s = torch.squeeze(self.critic_nn(obs))
         v_s_next = torch.squeeze(self.critic_nn(next_obs))
-        adv = re - v_s
-        adv = (1 - terminal) * (adv + v_s_next) + terminal * adv
+        q = re + self.gamma * v_s_next * (1 - terminal)
+        adv = q - v_s
 
         if self.normalize_advantages:
             mean = torch.mean(adv)
             std = torch.std(adv)
-            adv = (adv - mean)/std
+            adv = (adv - mean)/(std + 1e-8)
         return adv
 
     def sample_trajectories(self, itr, env):
@@ -268,7 +288,39 @@ class Agent:
                 "next_observation": np.array(next_obs, dtype=np.float32),
                 "terminal": np.array(terminals, dtype=np.float32)}
         return path
-    
+
+    def save_model(self, step, val):
+        ckpt_dict = {
+            'actor_state': self.actor_nn.cpu().state_dict(),
+            'critic_state': self.critic_nn.cpu().state_dict(),
+            'step': step,
+            'best_val': self.best_val
+        }
+        checkpoint_path = os.path.join(self.save_path, 'step_{}.pth.tar'.format(step))
+        torch.save(ckpt_dict, checkpoint_path)
+        self.ckpt_paths.put(checkpoint_path)
+        print('Saved checkpoint: {}'.format(checkpoint_path))
+        if self.best_val < val:
+            print('New best checkpoint at step {}...'.format(step))
+            self.best_val = val
+        # remove checkpoint with lower value
+        if self.ckpt_paths.qsize() > self.max_checkpoints:
+            worst_ckpt = self.ckpt_paths.get()
+            try:
+                os.remove(worst_ckpt)
+                print('Removed checkpoint: {}'.format(worst_ckpt))
+            except OSError:
+                # Avoid crashing if checkpoint has been removed or protected
+                pass
+
+    def load_model(self, checkpoint_path):
+        ckpt_dict = torch.load(checkpoint_path)
+        self.actor_nn.load_state_dict(ckpt_dict['actor_state'])
+        self.critic_nn.load_state_dict(ckpt_dict['critic_state'])
+        step = ckpt_dict['step']
+        best_val = ckpt_dict['best_val']
+        return  step, best_val
+
 def pathlength(path):
     return len(path["reward"])
 
@@ -293,7 +345,11 @@ def train_AC(
         animate,
         logdir,
         normalize_advantages,
-        seed):
+        seed,
+        save_path,
+        load_path,
+        max_checkpoints,
+        save_every):
 
     start = time.time()
 
@@ -335,6 +391,9 @@ def train_AC(
         'learning_rate': learning_rate,
         'num_target_updates': num_target_updates,
         'num_grad_steps_per_target_update': num_grad_steps_per_target_update,
+        'save_path': save_path,
+        'load_path': load_path,
+        'max_checkpoints': max_checkpoints,
         }
 
     sample_trajectory_args = {
@@ -355,7 +414,7 @@ def train_AC(
     #========================================================================================#
 
     total_timesteps = 0
-    for itr in range(n_iter):
+    for itr in range(agent.step + 1, agent.step + 1 + n_iter):
         print("********** Iteration %i ************"%itr)
         paths, timesteps_this_batch = agent.sample_trajectories(itr, env)
         total_timesteps += timesteps_this_batch
@@ -367,7 +426,7 @@ def train_AC(
         re = np.concatenate([path["reward"] for path in paths])
         next_obs = np.concatenate([path["next_observation"] for path in paths])
         terminal = np.concatenate([path["terminal"] for path in paths])
-        print(actions)
+        print(actions[:20])
         # obs = torch.from_numpy(obs).type(torch.float32)
         # actions = torch.from_numpy(actions).type(torch.int8)
         # re = torch.from_numpy(re).type(torch.float32)
@@ -403,6 +462,10 @@ def train_AC(
         logz.dump_tabular()
         logz.pickle_tf_vars()
 
+        # save model
+        if itr % save_every == 0:
+            agent.save_model(itr, np.mean(returns))
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
@@ -421,7 +484,11 @@ def main():
     # parser.add_argument('--num_grad_steps_per_target_update', '-ngsptu', type=int, default=1)
     parser.add_argument('--num_grad_steps_per_target_update', '-ngsptu', type=int, default=10)
     parser.add_argument('--seed', type=int, default=1)
-    parser.add_argument('--n_experiments', '-e', type=int, default=1)
+    parser.add_argument('--n_experiments', '-e', type=int, default=1),
+    parser.add_argument('--save_path', type=str, default='./save/'),
+    parser.add_argument('--load_path', type=str, default=None),
+    parser.add_argument('--max_checkpoints', type=int, default=5)
+    parser.add_argument('--save_every', type=int, default=5)
     args = parser.parse_args()
 
     data_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
@@ -455,7 +522,11 @@ def main():
                 animate=args.render,
                 logdir=os.path.join(logdir,'%d'%seed),
                 normalize_advantages=not(args.dont_normalize_advantages),
-                seed=seed
+                seed=seed,
+                save_path=args.save_path,
+                load_path=args.load_path,
+                max_checkpoints=args.max_checkpoints,
+                save_every=args.save_every
                 )
         train_func()
         # # Awkward hacky process runs, because Tensorflow does not like

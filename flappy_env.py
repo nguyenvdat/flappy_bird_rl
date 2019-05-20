@@ -94,7 +94,7 @@ class FlappyBird(gym.Env):
         IMAGES['base'] = pygame.image.load('assets/sprites/base.png').convert_alpha()
 
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(SCREENHEIGHT, SCREENWIDTH, 3), dtype=np.uint8)
-        self.action_space = gym.spaces.Discrete(n=3)
+        self.action_space = gym.spaces.Discrete(n=2)
         self.upperPipes = []
         self.lowerPipes = []
         # player velocity, max velocity, downward accleration, accleration on flap

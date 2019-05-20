@@ -62,7 +62,7 @@ class MaxAndSkipEnv(gym.Wrapper):
         self.env = env
 
     def step(self, action):
-        total_reward = 0.0
+        total_reward = -0.1 if action == constant.UP_ACTION else 0.1
         for i in range(self._skip):
             if i == 0 and action == constant.UP_ACTION:
                 ob, reward, done, _ = self.env.step(constant.UP_ACTION)
@@ -73,7 +73,7 @@ class MaxAndSkipEnv(gym.Wrapper):
             if done:
                 break
         max_frame = np.max(np.stack(self._obs_buffer), axis=0)
-        return max_frame, total_reward, done, _
+        return ob, total_reward, done, _
 
     def reset(self):
         self._obs_buffer.clear()
@@ -81,10 +81,9 @@ class MaxAndSkipEnv(gym.Wrapper):
         self._obs_buffer.append(ob)
         return ob
 
-
 def make_env():
     env = FlappyBird()
-    env = MaxAndSkipEnv(env)
+    env = MaxAndSkipEnv(env, 3)
     env = ProcessFrame84(env)
     env = ImageToPyTorch(env)
     env = BufferWrapper(env)
