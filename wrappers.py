@@ -52,9 +52,39 @@ class BufferWrapper(gym.ObservationWrapper):
 class ScaledFloatFrame(gym.ObservationWrapper):
     def observation(self, obs):
         return np.array(obs).astype(np.float32)/255.0
+        # return np.array(obs).astype(np.float32)
+
+class MaxAndSkipEnv(gym.Wrapper):
+    def __init__(self, env=None, skip=4):
+        super(MaxAndSkipEnv, self).__init__(env)
+        self._obs_buffer = collections.deque(maxlen=2)
+        self._skip = skip
+        self.env = env
+
+    def step(self, action):
+        total_reward = 0.0
+        for i in range(self._skip):
+            if i == 0 and action == constant.UP_ACTION:
+                ob, reward, done, _ = self.env.step(constant.UP_ACTION)
+            else:
+                ob, reward, done, _ = self.env.step(constant.NORMAL_ACTION)
+            self._obs_buffer.append(ob)
+            total_reward += reward
+            if done:
+                break
+        max_frame = np.max(np.stack(self._obs_buffer), axis=0)
+        return max_frame, total_reward, done, _
+
+    def reset(self):
+        self._obs_buffer.clear()
+        ob = self.env.reset()
+        self._obs_buffer.append(ob)
+        return ob
+
 
 def make_env():
     env = FlappyBird()
+    env = MaxAndSkipEnv(env)
     env = ProcessFrame84(env)
     env = ImageToPyTorch(env)
     env = BufferWrapper(env)

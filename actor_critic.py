@@ -253,6 +253,7 @@ class Agent:
             # If the episode ended, the corresponding terminal value is 1
             # otherwise, it is 0
             # YOUR CODE HERE
+            # print(steps)
             # plt.imshow(ob[1], cmap='gray')
             # plt.savefig ('image/grafico01' + str(steps) + '.png')
             # plt.show()

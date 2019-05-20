@@ -15,6 +15,7 @@ import pygame
 from pygame.locals import *
 from PIL import Image
 import pylab as pl
+import constant
 
 FPS = 30
 SCREENWIDTH  = 288
@@ -93,7 +94,7 @@ class FlappyBird(gym.Env):
         IMAGES['base'] = pygame.image.load('assets/sprites/base.png').convert_alpha()
 
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(SCREENHEIGHT, SCREENWIDTH, 3), dtype=np.uint8)
-        self.action_space = gym.spaces.Discrete(n=5)
+        self.action_space = gym.spaces.Discrete(n=3)
         self.upperPipes = []
         self.lowerPipes = []
         # player velocity, max velocity, downward accleration, accleration on flap
@@ -198,7 +199,7 @@ class FlappyBird(gym.Env):
     def step(self, action):
         done = False
         reward = 0
-        if action == 1:
+        if action == constant.UP_ACTION:
             if self.playery > -2 * IMAGES['player'][0].get_height():
                     self.playerVelY = self.playerFlapAcc
                     self.playerFlapped = True
