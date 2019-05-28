@@ -1,8 +1,9 @@
 # from flappy_env import *
-from wrappers import *
+# from wrappers import *
 import matplotlib.pyplot as plt
-import pygame
-from actor_critic import *
+# import pygame
+# from actor_critic import *
+from dqn_utils import *
 
 def test_step_method():
     env = FlappyBird()
@@ -80,6 +81,17 @@ def test_network():
     out = net(x)
     assert out.size() == (2, 2)
 
+def test_buffer():
+    buffer = ReplayBuffer(5, (4, 84, 84))
+    ob = np.random.randn(4, 84, 84)
+    buffer.store_effect(ob, 1, 1, False)
+    buffer.store_effect(ob, 2, 2, False)
+    buffer.store_effect(ob, 3, 3, False)
+    buffer.store_effect(ob, 4, 4, False)
+    buffer.store_effect(ob, 5, 5, False)
+    buffer.store_effect(ob, 6, 6, False)
+    _, act_batch, rew_batch, _, _ = buffer.sample(3)
+    print(rew_batch)
 
 if __name__ == "__main__":
     # test_step_method()
@@ -88,4 +100,8 @@ if __name__ == "__main__":
     # test_buffer_wrapper()
     # test_scaledfloatframe_wrapper()
     # test_makeenv()
-    test_network()
+    # test_network()
+    # env = make_env()
+    # ob_dim = env.observation_space.shape[0]
+    # print(env.observation_space)
+    test_buffer()
